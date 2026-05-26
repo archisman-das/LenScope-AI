@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js
+.next/
+frontend/.next/
+out/
+frontend/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.*
+!.env.example
+frontend/.env.local
+backend/.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data and user uploads
+uploads/
+backend/uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# Model weights and generated ML artifacts
+weights/
+backend/weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Docker/local overrides
+docker-compose.override.yml

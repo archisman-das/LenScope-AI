@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LenScope AI - AI-Powered Object Detection</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configure Tailwind theme -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d4ff',
+                        secondary: '#7b2fff',
+                        accent: {
+                            cyan: '#00d4ff',
+                            purple: '#7b2fff',
+                            pink: '#ff2d95',
+                            green: '#00ff88'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Custom Styles -->
+    <style>
+        /* Custom CSS variables for futuristic theme */
+        :root {
+            --background: #0a0a0f;
+            --foreground: #ffffff;
+            --primary: #00d4ff;
+            --secondary: #7b2fff;
+            --accent-cyan: #00d4ff;
+            --accent-purple: #7b2fff;
+            --accent-pink: #ff2d95;
+            --accent-green: #00ff88;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            padding: 0;
+            margin: 0;
+        }
+
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            background: var(--background);
+            color: var(--foreground);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            height: 100%;
+        }
+
+        /* Page container - fixed size between header and footer */
+        .page-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 80px); /* Account for header (64px) and footer (16px) */
+            overflow: hidden;
+            margin-top: 64px; /* Header height */
+        }
+
+        /* Individual pages - fixed size, content scrolls within */
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .page.active {
+            opacity: 1;
+            visibility: visible;
+            z-index: 10;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 212, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 212, 255, 0.5);
+        }
+
+        /* Glass effect utility classes */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+        }
+
+        .glass-strong {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        /* Neon text effect */
+        .neon-text {
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5),
+                         0 0 20px rgba(0, 212, 255, 0.3),
+                         0 0 30px rgba(0, 212, 255, 0.2);
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent-pink) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Animated background gradient */
+        .animated-gradient {
+            background: linear-gradient(-45deg, #0a0a0f, #12121a, #1a1a2e, #0f0f1a);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Scan line effect */
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background: linear-gradient(
+                to bottom,
+                transparent 0%,
+                rgba(0, 212, 255, 0.03) 50%,
+                transparent 100%
+            );
+            animation: scanline 6s linear infinite;
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        /* Button styles */
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            color: #000;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: #00d4ff;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* Card styles */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(0, 212, 255, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Input styles */
+        .input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(17, 24, 39, 0.5);
+            border: 1px solid rgba(55, 65, 81, 1);
+            border-radius: 0.5rem;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: rgba(0, 212, 255, 0.5);
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+        }
+
+        /* Badge styles */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 9999px;
+        }
+
+        .badge-primary {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .badge-secondary {
+            background: rgba(123, 47, 255, 0.2);
+            color: #7b2fff;
+            border: 1px solid rgba(123, 47, 255, 0.3);
+        }
+
+        .badge-success {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        /* Animation utilities */
+        .fade-in-up {
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Navigation link styles */
+        .nav-link {
+            color: rgba(209, 213, 219, 1);
+            text-decoration: none;
+            transition: color 0.3s ease;
+            padding: 0.5rem;
+            cursor: pointer;
+        }
+
+        .nav-link:hover {
+            color: #00d4ff;
+        }
+
+        .nav-link.active {
+            color: #00d4ff;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 2px dashed rgba(0, 212, 255, 0.3);
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: rgba(0, 212, 255, 0.6);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        /* Detection canvas container */
+        .detection-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .detection-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Bounding box label */
+        .bbox-label {
+            position: absolute;
+            background: rgba(0, 212, 255, 0.9);
+            color: #000;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        /* Webcam placeholder */
+        .webcam-placeholder {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(123, 47, 255, 0.1));
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 1rem;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            h1 {
+                font-size: 2.5rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen animated-gradient">
+    <!-- Scanline effect overlay -->
+    <div class="scanline"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-2 fade-in-up">
+                    <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span class="text-xl font-bold gradient-text">LenScope AI</span>
+                </div>
+                
+                <div class="nav-links flex items-center space-x-6">
+                    <a onclick="navigateTo('home')" class="nav-link active" data-page="home">Home</a>
+                    <a onclick="navigateTo('detect')" class="nav-link" data-page="detect">Detection</a>
+                    <a onclick="navigateTo('webcam')" class="nav-link" data-page="webcam">Webcam</a>
+                    <a onclick="navigateTo('analytics')" class="nav-link" data-page="analytics">Analytics</a>
+                    <a onclick="navigateTo('models')" class="nav-link" data-page="models">Models</a>
+                    <a onclick="navigateTo('admin')" class="nav-link hidden lg:block" data-page="admin">Admin</a>
+                    <a onclick="navigateTo('ai-features')" class="nav-link hidden md:block" data-page="ai-features">AI Features</a>
+                    <a onclick="navigateTo('detect')" class="btn-primary text-sm">Get Started</a>
+                </div>
+
+                <!-- Mobile menu button -->
+                <button class="md:hidden text-gray-300 hover:text-white" onclick="toggleMobileMenu()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden glass border-t border-white/10">
+            <div class="px-4 py-4 space-y-3">
+                <a onclick="navigateTo('home'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">Home</a>
+                <a onclick="navigateTo('detect'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">Detection</a>
+                <a onclick="navigateTo('webcam'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">Webcam</a>
+                <a onclick="navigateTo('analytics'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">Analytics</a>
+                <a onclick="navigateTo('models'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">Models</a>
+                <a onclick="navigateTo('ai-features'); toggleMobileMenu();" class="block text-gray-300 hover:text-primary py-2">AI Features</a>
+                <a onclick="navigateTo('detect'); toggleMobileMenu();" class="btn-primary text-sm w-full text-center justify-center">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Container -->
+    <div class="page-container pt-16">
+        
+        <!-- HOME PAGE -->
+        <section id="home" class="page active">
+            <div class="relative min-h-screen flex items-center justify-center">
+                <!-- Animated background elements -->
+                <div class="absolute inset-0 overflow-hidden">
+                    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse-slow"></div>
+                    <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 1s;"></div>
+                </div>
+
+                <div class="relative z-10 max-w-7xl mx-auto px-4 text-center">
+                    <div class="fade-in-up">
+                        <h1 class="text-6xl md:text-8xl font-bold mb-6">
+                            <span class="gradient-text">AI-Powered</span><br>
+                            <span class="text-white">Object Detection</span>
+                        </h1>
+                        
+                        <p class="text-xl md:text-2xl text-gray-400 mb-8 max-w-3xl mx-auto">
+                            Advanced computer vision dashboard with real-time object detection,
+                            multi-model comparison, and comprehensive analytics.
+                            Powered by YOLOv8 and cutting-edge deep learning.
+                        </p>
+
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                            <button onclick="navigateTo('detect')" class="btn-primary text-lg px-8 py-4">
+                                Start Detecting
+                                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </button>
+                            <button onclick="navigateTo('webcam')" class="btn-secondary text-lg px-8 py-4">
+                                Live Webcam
+                                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Feature Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
+                        <div class="card fade-in-up" style="animation-delay: 0.2s" onclick="navigateTo('detect')">
+                            <div class="mb-4">
+                                <svg class="w-12 h-12 text-primary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-semibold mb-2 text-white text-center">Real-Time Detection</h3>
+                            <p class="text-gray-400 text-center">Process images and video streams with lightning-fast inference speeds</p>
+                        </div>
+
+                        <div class="card fade-in-up" style="animation-delay: 0.4s" onclick="navigateTo('models')">
+                            <div class="mb-4">
+                                <svg class="w-12 h-12 text-secondary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-semibold mb-2 text-white text-center">Multi-Model Comparison</h3>
+                            <p class="text-gray-400 text-center">Compare YOLOv8 variants and other models for optimal performance</p>
+                        </div>
+
+                        <div class="card fade-in-up" style="animation-delay: 0.6s" onclick="navigateTo('ai-features')">
+                            <div class="mb-4">
+                                <svg class="w-12 h-12 text-accent-green mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-semibold mb-2 text-white text-center">GPU Acceleration</h3>
+                            <p class="text-gray-400 text-center">Automatic CUDA acceleration with intelligent CPU fallback</p>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16">
+                        <div class="glass rounded-lg p-4 fade-in-up" style="animation-delay: 0.8s">
+                            <div class="text-3xl font-bold neon-text mb-1">80+</div>
+                            <div class="text-sm text-gray-500">Object Classes</div>
+                        </div>
+                        <div class="glass rounded-lg p-4 fade-in-up" style="animation-delay: 0.9s">
+                            <div class="text-3xl font-bold neon-text mb-1"><30ms</div>
+                            <div class="text-sm text-gray-500">Inference Time</div>
+                        </div>
+                        <div class="glass rounded-lg p-4 fade-in-up" style="animation-delay: 1.0s">
+                            <div class="text-3xl font-bold neon-text mb-1">5+</div>
+                            <div class="text-sm text-gray-500">Models</div>
+                        </div>
+                        <div class="glass rounded-lg p-4 fade-in-up" style="animation-delay: 1.1s">
+                            <div class="text-3xl font-bold neon-text mb-1">99%</div>
+                            <div class="text-sm text-gray-500">Uptime</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DETECTION PAGE -->
+        <section id="detect" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Object Detection</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">Upload an image to detect objects using our AI-powered models with bounding box visualization</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Upload & Controls -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="card">
+                            <h3 class="text-xl font-semibold mb-4 text-white">Upload Image</h3>
+                            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                                <svg class="w-16 h-16 text-primary mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                <p class="text-gray-400 mb-2">Drag & drop or click</p>
+                                <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+                            </div>
+                            <div id="previewContainer" class="mt-4 hidden">
+                                <div class="detection-container" id="detectionContainer">
+                                    <img id="imagePreview" class="w-full rounded-lg" alt="Preview">
+                                    <canvas id="detectionCanvas"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-xl font-semibold mb-4 text-white">Settings</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">Model Family</label>
+                                    <select class="input" id="modelFamily" onchange="updateModelOptions()">
+                                        <option value="yolo">YOLO (You Only Look Once)</option>
+                                        <option value="ssd">SSD (Single Shot Detector)</option>
+                                        <option value="faster_rcnn">Faster R-CNN</option>
+                                        <option value="retinanet">RetinaNet</option>
+                                        <option value="efficientdet">EfficientDet</option>
+                                        <option value="detr">DETR (Detection Transformer)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">Model Variant</label>
+                                    <select class="input" id="modelSelect">
+                                        <option value="yolov8n">YOLOv8 Nano (Fastest)</option>
+                                        <option value="yolov8s">YOLOv8 Small</option>
+                                        <option value="yolov8m">YOLOv8 Medium</option>
+                                        <option value="yolov8l">YOLOv8 Large</option>
+                                        <option value="yolov8x">YOLOv8 Xtra</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">Confidence: <span id="confValue" class="text-primary">50%</span></label>
+                                    <input type="range" min="10" max="95" value="50" class="w-full accent-primary" id="confidenceSlider">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">IOU Threshold: <span id="iouValue" class="text-primary">45%</span></label>
+                                    <input type="range" min="10" max="90" value="45" class="w-full accent-primary" id="iouSlider">
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-400">Auto Model Switch</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="autoModelSwitch" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                    </label>
+                                </div>
+                                <button onclick="runDetection()" class="btn-primary w-full">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Run Detection
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="lg:col-span-2">
+                        <div class="card h-full">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-semibold text-white">Detection Results</h3>
+                                <span id="detectionTime" class="badge badge-primary">Ready</span>
+                            </div>
+                            <div id="detectionResults">
+                                <div class="text-gray-500 text-center py-12">
+                                    <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                    <p>Upload an image and click "Run Detection"</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WEBCAM PAGE -->
+        <section id="webcam" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Live Webcam Detection</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">Real-time object detection with bounding boxes using your webcam</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2">
+                        <div class="card">
+                            <div class="webcam-placeholder" id="webcamContainer">
+                                <div class="text-center z-10">
+                                    <svg class="w-20 h-20 text-primary mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <p class="text-gray-400 mb-4" id="webcamStatus">Click to start webcam</p>
+                                    <button onclick="startWebcam()" class="btn-primary" id="webcamStartButton">Start Webcam</button>
+                                </div>
+                            </div>
+                            <div class="relative mt-4 hidden" id="webcamActive">
+                                <video id="webcamVideo" class="w-full rounded-lg bg-black object-contain" autoplay playsinline muted></video>
+                                <canvas id="webcamCanvas" class="absolute top-0 left-0 w-full h-full rounded-lg pointer-events-none"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="text-xl font-semibold mb-4 text-white">Controls</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Model</label>
+                                <select class="input" id="webcamModelSelect">
+                                    <option value="yolov8m" selected>YOLOv8m - Balanced accuracy</option>
+                                    <option value="yolov8s">YOLOv8s - Efficient webcam</option>
+                                    <option value="yolov8l">YOLOv8l - Higher accuracy</option>
+                                    <option value="yolov8x">YOLOv8x - Maximum accuracy</option>
+                                    <option value="yolov8s-world">YOLOv8s-World - Broad objects</option>
+                                    <option value="yolov8n">YOLOv8n - Fastest</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Use YOLOv8m/YOLO-World when non-person objects are missed.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Confidence: <span id="webcamConfValue" class="text-primary">35%</span></label>
+                                <input type="range" min="10" max="95" value="35" class="w-full accent-primary" id="webcamConfSlider">
+                            </div>
+                            <button onclick="toggleWebcamDetection()" class="btn-primary w-full" id="detectionToggle">
+                                Enable Detection
+                            </button>
+                        </div>
+
+                        <div class="mt-8">
+                            <h4 class="text-lg font-semibold mb-4 text-white">Live Stats</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">FPS</span>
+                                    <span class="neon-text" id="fpsValue">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Objects</span>
+                                    <span class="neon-text" id="objectCount">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Up Moves</span>
+                                    <span class="neon-text" id="upMoveCount">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Down Moves</span>
+                                    <span class="neon-text" id="downMoveCount">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Total Movement</span>
+                                    <span class="neon-text" id="totalMoveCount">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Latency</span>
+                                    <span class="neon-text" id="latencyValue">0ms</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Model</span>
+                                    <span class="badge badge-secondary" id="currentModel">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ANALYTICS PAGE -->
+        <section id="analytics" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Analytics Dashboard</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">Comprehensive insights into your detection performance</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="card">
+                        <div class="text-sm text-gray-400 mb-2">Total Detections</div>
+                        <div class="text-3xl font-bold neon-text">12,847</div>
+                        <div class="text-sm text-accent-green mt-2">+12% from last week</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-sm text-gray-400 mb-2">Avg. Confidence</div>
+                        <div class="text-3xl font-bold neon-text">87.3%</div>
+                        <div class="text-sm text-accent-green mt-2">+2.1% improvement</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-sm text-gray-400 mb-2">Processing Time</div>
+                        <div class="text-3xl font-bold neon-text">24ms</div>
+                        <div class="text-sm text-accent-green mt-2">-5ms faster</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-sm text-gray-400 mb-2">API Calls</div>
+                        <div class="text-3xl font-bold neon-text">45.2K</div>
+                        <div class="text-sm text-gray-500 mt-2">This month</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="card">
+                        <h3 class="text-xl font-semibold mb-4 text-white">Class Distribution</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Person</span>
+                                    <span class="text-sm text-white">35%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 35%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Vehicle</span>
+                                    <span class="text-sm text-white">25%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-secondary h-2 rounded-full" style="width: 25%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Animal</span>
+                                    <span class="text-sm text-white">18%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-accent-green h-2 rounded-full" style="width: 18%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Object</span>
+                                    <span class="text-sm text-white">15%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-accent-pink h-2 rounded-full" style="width: 15%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Other</span>
+                                    <span class="text-sm text-white">7%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-gray-500 h-2 rounded-full" style="width: 7%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-semibold mb-4 text-white">Model Performance</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 glass rounded-lg">
+                                <div>
+                                    <div class="text-white font-semibold">YOLOv8n</div>
+                                    <div class="text-xs text-gray-500">Nano - Fastest</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-accent-green">37.3% mAP</div>
+                                    <div class="text-xs text-gray-500">0.9ms</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 glass rounded-lg">
+                                <div>
+                                    <div class="text-white font-semibold">YOLOv8s</div>
+                                    <div class="text-xs text-gray-500">Small - Balanced</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-primary">44.9% mAP</div>
+                                    <div class="text-xs text-gray-500">1.5ms</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 glass rounded-lg">
+                                <div>
+                                    <div class="text-white font-semibold">YOLOv8m</div>
+                                    <div class="text-xs text-gray-500">Medium - Accurate</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-secondary">50.2% mAP</div>
+                                    <div class="text-xs text-gray-500">4.5ms</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 glass rounded-lg">
+                                <div>
+                                    <div class="text-white font-semibold">YOLOv8l</div>
+                                    <div class="text-xs text-gray-500">Large - High Acc</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-accent-pink">52.9% mAP</div>
+                                    <div class="text-xs text-gray-500">7.8ms</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MODELS PAGE -->
+        <section id="models" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Model Comparison</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">Compare all available detection models</p>
+                </div>
+
+                <div class="mb-4 flex justify-between items-center">
+                    <button onclick="loadModels()" class="btn-secondary text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.01M4 9v5h.01M4 14v5h.01M10 4v5h.01M10 9v5h.01M10 14v5h.01M16 4v5h.01M16 9v5h.01M16 14v5h.01M22 4v5h.01M22 9v5h.01M22 14v5h.01" />
+                        </svg>
+                        Refresh Models
+                    </button>
+                    <span id="modelCount" class="text-gray-400 text-sm">Loading...</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full glass rounded-lg">
+                        <thead>
+                            <tr class="border-b border-white/10">
+                                <th class="text-left p-4 text-white">Model</th>
+                                <th class="text-left p-4 text-white">Family</th>
+                                <th class="text-left p-4 text-white">Type</th>
+                                <th class="text-left p-4 text-white">Accuracy</th>
+                                <th class="text-left p-4 text-white">Speed (CPU)</th>
+                                <th class="text-left p-4 text-white">Speed (GPU)</th>
+                                <th class="text-left p-4 text-white">Use Case</th>
+                                <th class="text-left p-4 text-white">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modelsTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-gray-400">
+                                    Loading models from backend...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card">
+                        <h4 class="text-lg font-semibold mb-2 text-white">Auto Model Switching</h4>
+                        <p class="text-gray-400 text-sm">Automatically switch between models based on scene complexity and performance requirements for optimal detection accuracy.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="text-lg font-semibold mb-2 text-white">80+ Object Classes</h4>
+                        <p class="text-gray-400 text-sm">All models support COCO dataset classes including person, vehicle, animal, furniture, electronics, and more.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="text-lg font-semibold mb-2 text-white">GPU Acceleration</h4>
+                        <p class="text-gray-400 text-sm">CUDA-enabled inference with automatic CPU fallback. Batch processing supported for high-throughput scenarios.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ADMIN PAGE -->
+        <section id="admin" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Admin Panel</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">System configuration and management</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="card">
+                        <h3 class="text-xl font-semibold mb-4 text-white">System Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">API Endpoint</label>
+                                <input type="text" class="input" value="http://localhost:8000/api">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Max Concurrent Requests</label>
+                                <input type="number" class="input" value="10">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-2">Default Model</label>
+                                <select class="input">
+                                    <option>YOLOv8n</option>
+                                    <option>YOLOv8s</option>
+                                    <option>YOLOv8m</option>
+                                </select>
+                            </div>
+                            <button class="btn-primary w-full">Save Settings</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="text-xl font-semibold mb-4 text-white">System Health</h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400">GPU Status</span>
+                                <span class="badge badge-success">Online</span>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">GPU Usage</span>
+                                    <span class="text-sm text-white">45%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 45%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Memory Usage</span>
+                                    <span class="text-sm text-white">72%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-secondary h-2 rounded-full" style="width: 72%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-sm text-gray-400">Disk Space</span>
+                                    <span class="text-sm text-white">34%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-accent-green h-2 rounded-full" style="width: 34%"></div>
+                                </div>
+                            </div>
+                            <button class="btn-secondary w-full">View Logs</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI FEATURES PAGE -->
+        <section id="ai-features" class="page">
+            <div class="max-w-7xl mx-auto px-4 py-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                        <span class="gradient-text">Advanced AI Features</span>
+                    </h2>
+                    <p class="text-gray-400 text-lg max-w-2xl mx-auto">Cutting-edge computer vision capabilities</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-primary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Scene Understanding</h3>
+                        <p class="text-gray-400 text-center text-sm">Contextual analysis of entire scenes with object relationships</p>
+                    </div>
+
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-secondary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Motion Tracking</h3>
+                        <p class="text-gray-400 text-center text-sm">Track objects across video frames with unique IDs</p>
+                    </div>
+
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-accent-green mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Anomaly Detection</h3>
+                        <p class="text-gray-400 text-center text-sm">Identify unusual patterns and outliers in real-time</p>
+                    </div>
+
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-accent-pink mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Image Segmentation</h3>
+                        <p class="text-gray-400 text-center text-sm">Pixel-level object boundaries for precise analysis</p>
+                    </div>
+
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-primary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Object Counting</h3>
+                        <p class="text-gray-400 text-center text-sm">Automated counting and inventory management</p>
+                    </div>
+
+                    <div class="card hover-lift">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 text-secondary mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-white text-center">Performance Analytics</h3>
+                        <p class="text-gray-400 text-center text-sm">Detailed metrics and insights for optimization</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+
+    <!-- JavaScript -->
+    <script>
+        // Page Navigation
+        function navigateTo(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show target page
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+            
+            // Update nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.dataset.page === pageId) {
+                    link.classList.add('active');
+                }
+            });
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Model selection
+        function selectModel(modelId) {
+            document.getElementById('modelSelect').value = modelId;
+            navigateTo('detect');
+        }
+
+        // Update model options based on family selection
+        function updateModelOptions() {
+            const family = document.getElementById('modelFamily').value;
+            const modelSelect = document.getElementById('modelSelect');
+            
+            const modelOptions = {
+                'yolo': [
+                    { value: 'yolov8n', label: 'YOLOv8 Nano (Fastest)' },
+                    { value: 'yolov8s', label: 'YOLOv8 Small' },
+                    { value: 'yolov8m', label: 'YOLOv8 Medium' },
+                    { value: 'yolov8l', label: 'YOLOv8 Large' },
+                    { value: 'yolov8x', label: 'YOLOv8 Xtra' }
+                ],
+                'ssd': [
+                    { value: 'ssd_mobilenet', label: 'SSD MobileNet (Fastest)' },
+                    { value: 'ssd_resnet50', label: 'SSD ResNet50' },
+                    { value: 'ssd_vgg16', label: 'SSD VGG16' }
+                ],
+                'faster_rcnn': [
+                    { value: 'faster_rcnn_resnet50', label: 'Faster R-CNN ResNet50' },
+                    { value: 'faster_rcnn_resnet101', label: 'Faster R-CNN ResNet101' },
+                    { value: 'faster_rcnn_inception', label: 'Faster R-CNN Inception' }
+                ],
+                'retinanet': [
+                    { value: 'retinanet_resnet50', label: 'RetinaNet ResNet50' },
+                    { value: 'retinanet_resnet101', label: 'RetinaNet ResNet101' },
+                    { value: 'retinanet_mobilenet', label: 'RetinaNet MobileNet' }
+                ],
+                'efficientdet': [
+                    { value: 'efficientdet_d0', label: 'EfficientDet D0 (Fastest)' },
+                    { value: 'efficientdet_d1', label: 'EfficientDet D1' },
+                    { value: 'efficientdet_d2', label: 'EfficientDet D2' },
+                    { value: 'efficientdet_d3', label: 'EfficientDet D3' },
+                    { value: 'efficientdet_d4', label: 'EfficientDet D4' },
+                    { value: 'efficientdet_d5', label: 'EfficientDet D5' },
+                    { value: 'efficientdet_d6', label: 'EfficientDet D6' },
+                    { value: 'efficientdet_d7', label: 'EfficientDet D7 (Most Accurate)' }
+                ],
+                'detr': [
+                    { value: 'detr_resnet50', label: 'DETR ResNet50' },
+                    { value: 'detr_resnet101', label: 'DETR ResNet101' },
+                    { value: 'deformable_detr', label: 'Deformable DETR' }
+                ]
+            };
+            
+            // Clear existing options
+            modelSelect.innerHTML = '';
+            
+            // Add new options
+            modelOptions[family].forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.label;
+                modelSelect.appendChild(option);
+            });
+        }
+
+        // File upload handling
+        let selectedFile = null;
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    preview.onload = function() {
+                        document.getElementById('previewContainer').classList.remove('hidden');
+                        setupCanvas();
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Setup canvas for detection overlay
+        function setupCanvas() {
+            const img = document.getElementById('imagePreview');
+            const canvas = document.getElementById('detectionCanvas');
+            const container = document.getElementById('detectionContainer');
+            
+            canvas.width = img.offsetWidth;
+            canvas.height = img.offsetHeight;
+            
+            // Clear previous drawings
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = ev.target.result;
+                    preview.onload = function() {
+                        document.getElementById('previewContainer').classList.remove('hidden');
+                        setupCanvas();
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Sliders
+        document.getElementById('confidenceSlider').addEventListener('input', (e) => {
+            document.getElementById('confValue').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('iouSlider').addEventListener('input', (e) => {
+            document.getElementById('iouValue').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('webcamConfSlider').addEventListener('input', (e) => {
+            document.getElementById('webcamConfValue').textContent = e.target.value + '%';
+        });
+
+        // Comprehensive object classes for better detection simulation
+        const objectClasses = [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+            'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+            'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+            'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+            'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake',
+            'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+            'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+            'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+        ];
+
+        // Color palette for bounding boxes
+        const bboxColors = [
+            '#00d4ff', '#7b2fff', '#ff2d95', '#00ff88', '#ff6b35',
+            '#ffd700', '#ff4444', '#44ff44', '#4444ff', '#ff44ff'
+        ];
+
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:8000';
+
+        // Run detection with bounding boxes - connects to real backend
+        async function runDetection() {
+            if (!selectedFile) {
+                alert('Please upload an image first!');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('detectionResults');
+            const timeBadge = document.getElementById('detectionTime');
+            
+            resultsDiv.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                    <p class="text-gray-400">Running detection...</p>
+                </div>
+            `;
+            timeBadge.textContent = 'Processing...';
+            timeBadge.className = 'badge badge-primary';
+
+            const model = document.getElementById('modelSelect').value;
+            const confidence = parseFloat(document.getElementById('confidenceSlider').value) / 100;
+            const iou = parseFloat(document.getElementById('iouSlider').value) / 100;
+            const autoSwitch = document.getElementById('autoModelSwitch').checked;
+
+            // Use 'auto' for model if auto-switch is enabled
+            const modelName = autoSwitch ? 'auto' : model;
+
+            try {
+                // Create form data for upload
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('model_name', modelName);
+                formData.append('confidence_threshold', confidence.toString());
+                formData.append('iou_threshold', iou.toString());
+                formData.append('draw_boxes', 'true');
+
+                const startTime = performance.now();
+
+                // Call the backend API
+                const response = await fetch(`${API_BASE_URL}/api/detection/detect/image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const endTime = performance.now();
+                const processingTime = Math.round(endTime - startTime);
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Detection failed');
+                }
+
+                const data = await response.json();
+                
+                // Process real detection results
+                const detections = data.results.map(det => ({
+                    class: det.class_name,
+                    confidence: det.confidence,
+                    bbox: det.bbox, // [x1, y1, x2, y2] in pixel coordinates
+                    color: bboxColors[det.class_id % bboxColors.length]
+                }));
+
+                // Draw bounding boxes on the image
+                drawBoundingBoxesFromAPI(detections, data.original_width, data.original_height);
+
+                // Show results
+                let resultsHTML = `
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-lg font-semibold text-white">Detected: ${data.num_detections} objects</h4>
+                        <span class="badge badge-secondary">${data.model_name.toUpperCase()}</span>
+                    </div>
+                `;
+
+                if (detections.length === 0) {
+                    resultsHTML += `
+                        <div class="text-center py-8 text-gray-400">
+                            <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p>No objects detected. Try lowering the confidence threshold.</p>
+                        </div>
+                    `;
+                } else {
+                    detections.forEach((det) => {
+                        resultsHTML += `
+                            <div class="flex items-center justify-between p-3 mb-2 glass rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-3 h-3 rounded-full mr-3" style="background: ${det.color}"></div>
+                                    <span class="text-white font-semibold">${det.class}</span>
+                                </div>
+                                <span class="text-primary font-mono">${(det.confidence * 100).toFixed(1)}%</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                resultsHTML += `
+                    <div class="mt-4 p-4 glass rounded-lg">
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <div class="text-2xl font-bold neon-text">${data.num_detections}</div>
+                                <div class="text-xs text-gray-500">Objects</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold neon-text">${processingTime}ms</div>
+                                <div class="text-xs text-gray-500">Time</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold neon-text">${data.fps.toFixed(1)}</div>
+                                <div class="text-xs text-gray-500">FPS</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = resultsHTML;
+                timeBadge.textContent = `${processingTime}ms`;
+                timeBadge.className = 'badge badge-success';
+
+            } catch (error) {
+                console.error('Detection error:', error);
+                let errorMsg = error.message || 'Unknown error';
+                let errorDetail = '';
+                
+                // Check if it's a network error
+                if (error instanceof TypeError && error.message.includes('fetch')) {
+                    errorMsg = 'Cannot connect to backend server';
+                    errorDetail = 'The backend server at ' + API_BASE_URL + ' is not responding. Make sure it is running.';
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="text-center py-8">
+                        <svg class="w-12 h-12 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-red-400">Error: ${errorMsg}</p>
+                        ${errorDetail ? '<p class="text-gray-500 text-sm mt-2">' + errorDetail + '</p>' : ''}
+                        <p class="text-gray-500 text-sm mt-2">Backend URL: ${API_BASE_URL}</p>
+                        <p class="text-gray-500 text-xs mt-1">Check browser console for details</p>
+                    </div>
+                `;
+                timeBadge.textContent = 'Error';
+                timeBadge.className = 'badge';
+                timeBadge.style.background = 'rgba(255,68,68,0.2)';
+                timeBadge.style.color = '#ff4444';
+            }
+        }
+
+        // Draw bounding boxes from API response
+        function drawBoundingBoxesFromAPI(detections, originalWidth, originalHeight) {
+            const img = document.getElementById('imagePreview');
+            const canvas = document.getElementById('detectionCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Match canvas size to displayed image size
+            const displayWidth = img.offsetWidth;
+            const displayHeight = img.offsetHeight;
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+            
+            // Calculate scale factors
+            const scaleX = displayWidth / originalWidth;
+            const scaleY = displayHeight / originalHeight;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw each detection
+            detections.forEach(det => {
+                const bbox = det.bbox;
+                const rawX1 = Array.isArray(bbox) ? bbox[0] : bbox.x1;
+                const rawY1 = Array.isArray(bbox) ? bbox[1] : bbox.y1;
+                const rawX2 = Array.isArray(bbox) ? bbox[2] : bbox.x2;
+                const rawY2 = Array.isArray(bbox) ? bbox[3] : bbox.y2;
+                const x1 = rawX1 * scaleX;
+                const y1 = rawY1 * scaleY;
+                const x2 = rawX2 * scaleX;
+                const y2 = rawY2 * scaleY;
+                
+                const width = x2 - x1;
+                const height = y2 - y1;
+                
+                // Draw bounding box
+                ctx.strokeStyle = det.color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1, y1, width, height);
+                
+                // Draw label background
+                const label = `${det.class} ${(det.confidence * 100).toFixed(0)}%`;
+                ctx.font = 'bold 12px Arial';
+                const textWidth = ctx.measureText(label).width;
+                
+                ctx.fillStyle = det.color;
+                ctx.fillRect(x1, y1 - 20, textWidth + 10, 20);
+                
+                // Draw label text
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x1 + 5, y1 - 6);
+            });
+        }
+
+        // Draw bounding boxes on canvas
+        function drawBoundingBoxes(detections) {
+            const img = document.getElementById('imagePreview');
+            const canvas = document.getElementById('detectionCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Match canvas size to displayed image size
+            canvas.width = img.offsetWidth;
+            canvas.height = img.offsetHeight;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw each detection
+            detections.forEach(det => {
+                const x = det.x * canvas.width;
+                const y = det.y * canvas.height;
+                const w = det.width * canvas.width;
+                const h = det.height * canvas.height;
+                
+                // Draw bounding box
+                ctx.strokeStyle = det.color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+                
+                // Draw label background
+                const label = `${det.class} ${(det.confidence * 100).toFixed(0)}%`;
+                ctx.font = '12px Arial';
+                const textWidth = ctx.measureText(label).width;
+                
+                ctx.fillStyle = det.color;
+                ctx.fillRect(x, y - 20, textWidth + 10, 20);
+                
+                // Draw label text
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x + 5, y - 6);
+            });
+        }
+
+        // Webcam functionality
+        let webcamStream = null;
+        let detectionActive = false;
+        let webcamDetectionInterval = null;
+        let webcamFpsInterval = null;
+        let webcamFrameCount = 0;
+        let webcamDetectionBusy = false;
+        const webcamMovementTracks = new Map();
+        const webcamMovementCounts = { up: 0, down: 0 };
+
+        function getCameraStream(constraints) {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                return navigator.mediaDevices.getUserMedia(constraints);
+            }
+
+            const legacyGetUserMedia =
+                navigator.getUserMedia ||
+                navigator.webkitGetUserMedia ||
+                navigator.mozGetUserMedia ||
+                navigator.msGetUserMedia;
+
+            if (legacyGetUserMedia) {
+                return new Promise((resolve, reject) => {
+                    legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+                });
+            }
+
+            const protocol = window.location.protocol;
+            const host = window.location.hostname;
+            const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1' || host === '';
+
+            if (protocol === 'file:') {
+                return Promise.reject(new Error('Camera needs a localhost page. Open this file through http://localhost instead of file://.'));
+            }
+
+            if (!window.isSecureContext && !isLocalhost) {
+                const localhostUrl = `http://localhost${window.location.port ? `:${window.location.port}` : ''}${window.location.pathname}${window.location.search}${window.location.hash}`;
+                return Promise.reject(new Error(`Camera requires HTTPS or localhost. Open this page at ${localhostUrl}`));
+            }
+
+            return Promise.reject(new Error('Camera API is not available in this browser. Try Chrome or Edge.'));
+        }
+
+        function getLocalhostUrl() {
+            return `http://localhost${window.location.port ? `:${window.location.port}` : ''}${window.location.pathname}${window.location.search}${window.location.hash}`;
+        }
+
+        async function startWebcam() {
+            const status = document.getElementById('webcamStatus');
+            const startButton = document.getElementById('webcamStartButton');
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('webcamCanvas');
+            const container = document.getElementById('webcamContainer');
+            const activeDiv = document.getElementById('webcamActive');
+
+            try {
+                status.textContent = 'Starting camera. Allow permission if your browser asks.';
+                startButton.disabled = true;
+                startButton.textContent = 'Starting...';
+
+                if (!webcamStream) {
+                    webcamStream = await getCameraStream({
+                        audio: false,
+                        video: {
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'user'
+                        }
+                    });
+                }
+
+                video.srcObject = webcamStream;
+                await video.play();
+
+                container.classList.add('hidden');
+                activeDiv.classList.remove('hidden');
+                resizeWebcamCanvas();
+
+                status.textContent = 'Camera ready';
+                startButton.disabled = false;
+                startButton.textContent = 'Start Webcam';
+                startFPSCounter();
+            } catch (err) {
+                console.error('Webcam error:', err);
+                webcamStream?.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                startButton.disabled = false;
+                startButton.textContent = 'Start Webcam';
+                status.innerHTML = 'Camera blocked or unavailable';
+                if (err && err.message && err.message.includes('localhost')) {
+                    status.innerHTML = `
+                        <span class="block mb-3">${err.message}</span>
+                        <button type="button" class="btn-secondary text-sm" onclick="window.location.href='${getLocalhostUrl()}'">
+                            Open localhost version
+                        </button>
+                    `;
+                }
+                alert((err && err.message) || 'Could not access webcam. Please check permissions.');
+            }
+        }
+
+        async function toggleWebcamDetection() {
+            if (!webcamStream) {
+                await startWebcam();
+                if (!webcamStream) return;
+            }
+
+            detectionActive = !detectionActive;
+            const btn = document.getElementById('detectionToggle');
+            
+            if (detectionActive) {
+                btn.textContent = 'Disable Detection';
+                btn.classList.add('bg-red-500');
+                document.getElementById('currentModel').textContent = document.getElementById('webcamModelSelect').value.toUpperCase();
+                resetWebcamMovementCounters();
+                startWebcamDetectionLoop();
+            } else {
+                btn.textContent = 'Enable Detection';
+                btn.classList.remove('bg-red-500');
+                stopWebcamDetection();
+            }
+        }
+
+        function resizeWebcamCanvas() {
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('webcamCanvas');
+            const rect = video.getBoundingClientRect();
+            canvas.width = Math.max(1, Math.round(rect.width));
+            canvas.height = Math.max(1, Math.round(rect.height));
+        }
+
+        function startFPSCounter() {
+            if (webcamFpsInterval) return;
+
+            const fpsDisplay = document.getElementById('fpsValue');
+            
+            webcamFpsInterval = setInterval(() => {
+                fpsDisplay.textContent = webcamFrameCount;
+                webcamFrameCount = 0;
+            }, 1000);
+
+            function countFrame() {
+                webcamFrameCount++;
+                if (webcamStream) requestAnimationFrame(countFrame);
+            }
+            countFrame();
+        }
+
+        function captureWebcamBlob() {
+            return new Promise((resolve, reject) => {
+                const video = document.getElementById('webcamVideo');
+                const frameCanvas = document.createElement('canvas');
+                const width = video.videoWidth || 640;
+                const height = video.videoHeight || 480;
+                frameCanvas.width = width;
+                frameCanvas.height = height;
+                const frameCtx = frameCanvas.getContext('2d');
+                frameCtx.drawImage(video, 0, 0, width, height);
+                frameCanvas.toBlob(blob => {
+                    if (blob) resolve({ blob, width, height });
+                    else reject(new Error('Could not capture webcam frame'));
+                }, 'image/jpeg', 0.92);
+            });
+        }
+
+        function drawWebcamDetections(detections, originalWidth, originalHeight) {
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            resizeWebcamCanvas();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scaleX = canvas.width / Math.max(1, originalWidth);
+            const scaleY = canvas.height / Math.max(1, originalHeight);
+
+            detections.forEach(det => {
+                const bbox = det.bbox;
+                const x1 = bbox.x1 * scaleX;
+                const y1 = bbox.y1 * scaleY;
+                const x2 = bbox.x2 * scaleX;
+                const y2 = bbox.y2 * scaleY;
+                const color = bboxColors[det.class_id % bboxColors.length];
+                const label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+                ctx.font = 'bold 12px Arial';
+                const labelWidth = ctx.measureText(label).width + 10;
+                const labelY = y1 > 22 ? y1 - 20 : y1;
+                ctx.fillStyle = color;
+                ctx.fillRect(x1, labelY, labelWidth, 20);
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x1 + 5, labelY + 14);
+            });
+        }
+
+        function resetWebcamMovementCounters() {
+            webcamMovementTracks.clear();
+            webcamMovementCounts.up = 0;
+            webcamMovementCounts.down = 0;
+            document.getElementById('upMoveCount').textContent = '0';
+            document.getElementById('downMoveCount').textContent = '0';
+            document.getElementById('totalMoveCount').textContent = '0';
+        }
+
+        function updateWebcamMovementCounters(detections, originalHeight) {
+            const threshold = Math.max(18, originalHeight * 0.04);
+            const sorted = [...detections].sort((a, b) => {
+                const classCompare = String(a.class_name).localeCompare(String(b.class_name));
+                if (classCompare !== 0) return classCompare;
+                return (a.bbox.x1 + a.bbox.x2) - (b.bbox.x1 + b.bbox.x2);
+            });
+            const seenKeys = new Set();
+
+            sorted.forEach((det, index) => {
+                const centerY = (det.bbox.y1 + det.bbox.y2) / 2;
+                const centerX = (det.bbox.x1 + det.bbox.x2) / 2;
+                const key = `${det.class_name}-${index}`;
+                seenKeys.add(key);
+
+                const previous = webcamMovementTracks.get(key);
+                if (previous) {
+                    const dy = centerY - previous.y;
+                    const dx = Math.abs(centerX - previous.x);
+
+                    if (Math.abs(dy) >= threshold && dx < Math.max(80, threshold * 3)) {
+                        const direction = dy < 0 ? 'up' : 'down';
+                        if (previous.direction !== direction) {
+                            webcamMovementCounts[direction] += 1;
+                        }
+                        webcamMovementTracks.set(key, { x: centerX, y: centerY, direction });
+                    } else {
+                        webcamMovementTracks.set(key, { ...previous, x: centerX, y: centerY });
+                    }
+                } else {
+                    webcamMovementTracks.set(key, { x: centerX, y: centerY, direction: null });
+                }
+            });
+
+            for (const key of webcamMovementTracks.keys()) {
+                if (!seenKeys.has(key)) {
+                    webcamMovementTracks.delete(key);
+                }
+            }
+
+            document.getElementById('upMoveCount').textContent = webcamMovementCounts.up;
+            document.getElementById('downMoveCount').textContent = webcamMovementCounts.down;
+            document.getElementById('totalMoveCount').textContent = webcamMovementCounts.up + webcamMovementCounts.down;
+        }
+
+        async function loadWebcamModels() {
+            const select = document.getElementById('webcamModelSelect');
+            if (!select) return;
+
+            const preferredOrder = ['yolov8m', 'yolov8s', 'yolov8l', 'yolov8x', 'yolov8s-world', 'yolov8n'];
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/detection/models`);
+                if (!response.ok) throw new Error('Failed to load webcam models');
+
+                const data = await response.json();
+                const models = (data.models || [])
+                    .filter(model => model.runnable && preferredOrder.includes(model.id))
+                    .sort((a, b) => preferredOrder.indexOf(a.id) - preferredOrder.indexOf(b.id));
+
+                if (!models.length) return;
+
+                select.innerHTML = models.map(model => {
+                    const label = model.id === 'yolov8s-world'
+                        ? `${model.name} - Broad objects`
+                        : `${model.name} - ${model.best_for || model.description || 'Detection'}`;
+                    return `<option value="${model.id}" ${model.id === 'yolov8m' ? 'selected' : ''}>${label}</option>`;
+                }).join('');
+            } catch (err) {
+                console.warn('Using fallback webcam models:', err);
+            }
+        }
+
+        function startWebcamDetectionLoop() {
+            if (webcamDetectionInterval) return;
+
+            webcamDetectionInterval = setInterval(async () => {
+                if (webcamDetectionBusy || !webcamStream) return;
+                webcamDetectionBusy = true;
+
+                const startTime = performance.now();
+                try {
+                    const { blob } = await captureWebcamBlob();
+                    const formData = new FormData();
+                    formData.append('file', blob, 'webcam_capture.jpg');
+                    const selectedModel = document.getElementById('webcamModelSelect').value;
+                    formData.append('model_name', selectedModel);
+                    formData.append('confidence_threshold', (parseFloat(document.getElementById('webcamConfSlider').value) / 100).toString());
+                    formData.append('draw_boxes', 'false');
+                    if (selectedModel === 'yolov8s-world') {
+                        formData.append(
+                            'open_vocab_prompt',
+                            'person, phone, laptop, keyboard, mouse, book, bottle, cup, bag, backpack, chair, table, monitor, screen, paper, box, clothing, object, electronic device'
+                        );
+                    }
+
+                    const response = await fetch(`${API_BASE_URL}/api/detection/detect/image`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) throw new Error('Webcam detection request failed');
+
+                    const data = await response.json();
+                    drawWebcamDetections(data.results || [], data.original_width || 640, data.original_height || 480);
+                    updateWebcamMovementCounters(data.results || [], data.original_height || 480);
+                    document.getElementById('objectCount').textContent = data.num_detections || 0;
+                    document.getElementById('latencyValue').textContent = `${Math.round(performance.now() - startTime)}ms`;
+                } catch (err) {
+                    console.error('Webcam detection error:', err);
+                    document.getElementById('latencyValue').textContent = 'Error';
+                } finally {
+                    webcamDetectionBusy = false;
+                }
+            }, 900);
+        }
+
+        function stopWebcamDetection() {
+            if (webcamDetectionInterval) {
+                clearInterval(webcamDetectionInterval);
+                webcamDetectionInterval = null;
+            }
+            
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            document.getElementById('objectCount').textContent = '0';
+            document.getElementById('latencyValue').textContent = '0ms';
+            resetWebcamMovementCounters();
+        }
+
+        // Handle window resize for canvas
+        window.addEventListener('resize', () => {
+            if (document.getElementById('previewContainer') && !document.getElementById('previewContainer').classList.contains('hidden')) {
+                setupCanvas();
+                // Redraw if there are detections
+            }
+            if (webcamStream) {
+                resizeWebcamCanvas();
+            }
+        });
+
+        // Load models from backend API
+        const FALLBACK_MODELS = [
+            { id: 'yolov8n', name: 'YOLOv8n', family: 'YOLOv8', type: 'realtime', runnable: true, description: 'Nano - fastest model', input_size: 640, recommended_for: ['realtime', 'cpu'], expected_fps_cpu: 30, expected_fps_gpu: 60, accuracy_score: 0.65, best_for: 'Fast webcam and simple scenes' },
+            { id: 'yolov8s', name: 'YOLOv8s', family: 'YOLOv8', type: 'realtime', runnable: true, description: 'Small - efficient model', input_size: 640, recommended_for: ['balanced'], expected_fps_cpu: 20, expected_fps_gpu: 45, accuracy_score: 0.72, best_for: 'General detection' },
+            { id: 'yolov8m', name: 'YOLOv8m', family: 'YOLOv8', type: 'realtime', runnable: true, description: 'Medium - balanced accuracy', input_size: 640, recommended_for: ['accuracy', 'balanced'], expected_fps_cpu: 10, expected_fps_gpu: 30, accuracy_score: 0.78, best_for: 'More reliable non-person objects' },
+            { id: 'yolov8l', name: 'YOLOv8l', family: 'YOLOv8', type: 'realtime', runnable: true, description: 'Large - higher accuracy', input_size: 640, recommended_for: ['accuracy'], expected_fps_cpu: 5, expected_fps_gpu: 20, accuracy_score: 0.82, best_for: 'High accuracy' },
+            { id: 'yolov8x', name: 'YOLOv8x', family: 'YOLOv8', type: 'realtime', runnable: true, description: 'Extra large - maximum accuracy', input_size: 640, recommended_for: ['accuracy'], expected_fps_cpu: 3, expected_fps_gpu: 15, accuracy_score: 0.85, best_for: 'Complex scenes' },
+            { id: 'yolov8s-world', name: 'YOLOv8s-World', family: 'YOLO-World', type: 'openvocabulary', runnable: true, description: 'Open-vocabulary detector', input_size: 640, recommended_for: ['open vocabulary'], expected_fps_cpu: 2, expected_fps_gpu: 18, accuracy_score: 0.74, best_for: 'Objects outside COCO classes' },
+            { id: 'mobilenet-ssd', name: 'MobileNet SSD', family: 'SSD', type: 'realtime', runnable: true, description: 'SSD-style lightweight detector entry', input_size: 300, recommended_for: ['mobile', 'cpu', 'realtime'], expected_fps_cpu: 50, expected_fps_gpu: 80, accuracy_score: 0.55, best_for: 'Low-resource devices' },
+            { id: 'ssd300-vgg16', name: 'SSD300 VGG16', family: 'SSD', type: 'research', runnable: true, description: 'Classic single-shot detector entry', input_size: 300, recommended_for: ['legacy', 'cpu'], expected_fps_cpu: 24, expected_fps_gpu: 50, accuracy_score: 0.58, best_for: 'Fast legacy single-shot detection' },
+            { id: 'ssdlite-mobilenetv3', name: 'SSDLite MobileNetV3', family: 'SSDLite', type: 'research', runnable: true, description: 'Mobile-optimized SSD entry', input_size: 320, recommended_for: ['mobile', 'edge'], expected_fps_cpu: 38, expected_fps_gpu: 70, accuracy_score: 0.57, best_for: 'Mobile and edge deployments' },
+            { id: 'faster-rcnn', name: 'Faster R-CNN', family: 'Faster R-CNN', type: 'research', runnable: true, description: 'Two-stage detector comparison entry', input_size: 800, recommended_for: ['research', 'comparison'], expected_fps_cpu: 2, expected_fps_gpu: 10, accuracy_score: 0.80, best_for: 'Two-stage detector comparison' },
+            { id: 'faster-rcnn-r50', name: 'Faster R-CNN R50', family: 'Faster R-CNN', type: 'research', runnable: true, description: 'ResNet-50 Faster R-CNN comparison entry', input_size: 800, recommended_for: ['balanced'], expected_fps_cpu: 3, expected_fps_gpu: 12, accuracy_score: 0.78, best_for: 'Balanced two-stage detection' },
+            { id: 'faster-rcnn-r101', name: 'Faster R-CNN R101', family: 'Faster R-CNN', type: 'research', runnable: true, description: 'ResNet-101 Faster R-CNN comparison entry', input_size: 800, recommended_for: ['accuracy'], expected_fps_cpu: 2, expected_fps_gpu: 8, accuracy_score: 0.82, best_for: 'Higher-accuracy two-stage detection' },
+            { id: 'retinanet', name: 'RetinaNet', family: 'RetinaNet', type: 'research', runnable: true, description: 'Focal-loss dense detector entry', input_size: 800, recommended_for: ['research', 'comparison'], expected_fps_cpu: 3, expected_fps_gpu: 12, accuracy_score: 0.77, best_for: 'Dense one-stage detection' },
+            { id: 'retinanet-r50-fpn', name: 'RetinaNet R50-FPN', family: 'RetinaNet', type: 'research', runnable: true, description: 'RetinaNet R50-FPN comparison entry', input_size: 800, recommended_for: ['balanced'], expected_fps_cpu: 4, expected_fps_gpu: 14, accuracy_score: 0.77, best_for: 'Dense one-stage baseline' },
+            { id: 'efficientdet-d0', name: 'EfficientDet-D0', family: 'EfficientDet', type: 'research', runnable: true, description: 'Small EfficientDet entry', input_size: 512, recommended_for: ['mobile', 'balanced'], expected_fps_cpu: 18, expected_fps_gpu: 42, accuracy_score: 0.68, best_for: 'Efficient detection on modest hardware' },
+            { id: 'efficientdet-d1', name: 'EfficientDet-D1', family: 'EfficientDet', type: 'research', runnable: true, description: 'Balanced EfficientDet entry', input_size: 640, recommended_for: ['balanced'], expected_fps_cpu: 12, expected_fps_gpu: 34, accuracy_score: 0.72, best_for: 'Balanced efficient detection' },
+            { id: 'efficientdet-d2', name: 'EfficientDet-D2', family: 'EfficientDet', type: 'research', runnable: true, description: 'Mid-size EfficientDet entry', input_size: 768, recommended_for: ['accuracy'], expected_fps_cpu: 8, expected_fps_gpu: 25, accuracy_score: 0.76, best_for: 'Efficient high-resolution detection' }
+        ];
+
+        function modelListText(value) {
+            if (Array.isArray(value)) return value.join(', ');
+            if (typeof value === 'string') return value;
+            return 'N/A';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        async function fetchModelsCatalog() {
+            const sameOriginBase = window.location.port === '8000' ? '' : null;
+            const endpoints = [
+                ...(sameOriginBase !== null ? [`${sameOriginBase}/api/detection/models`, `${sameOriginBase}/api/models`] : []),
+                `${API_BASE_URL}/api/detection/models`,
+                `${API_BASE_URL}/api/models`
+            ];
+
+            let lastError = null;
+            for (const endpoint of endpoints) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 4500);
+                try {
+                    const response = await fetch(endpoint, { cache: 'no-store', signal: controller.signal });
+                    if (!response.ok) throw new Error(`${endpoint} returned ${response.status}`);
+                    const data = await response.json();
+                    if (Array.isArray(data.models)) return data;
+                } catch (err) {
+                    lastError = err;
+                    console.warn('Model endpoint failed:', endpoint, err);
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+
+            throw lastError || new Error('No model endpoint returned models');
+        }
+
+        function renderModelsTable(models, sourceLabel = 'backend') {
+            const tbody = document.getElementById('modelsTableBody');
+            const countSpan = document.getElementById('modelCount');
+
+            countSpan.textContent = `${models.length} models available · ${models.filter(model => model.runnable).length} runnable · ${sourceLabel}`;
+
+            if (models.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400">No models available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = models.map(model => {
+                const accuracy = Number(model.accuracy_score || 0);
+                const accuracyBadge = accuracy >= 0.8 ? 'badge-success' : 
+                                     accuracy >= 0.7 ? 'badge-primary' : 
+                                     accuracy >= 0.6 ? 'badge-secondary' : '';
+                const type = model.type || 'unknown';
+                const typeBadge = type === 'realtime' ? 'badge-primary' : type === 'openvocabulary' ? 'badge-success' : 'badge-secondary';
+                const modelId = escapeHtml(model.id || model.name || '');
+                
+                return `
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="p-4">
+                            <div class="text-white font-semibold">${escapeHtml(model.name || model.id || 'Unknown model')}</div>
+                            <div class="text-xs text-gray-500">${escapeHtml(model.description || model.best_for || 'Detection model')}</div>
+                        </td>
+                        <td class="p-4 text-gray-400">${escapeHtml(model.family || 'N/A')}</td>
+                        <td class="p-4">
+                            <span class="badge ${typeBadge}">${escapeHtml(type)}</span>
+                        </td>
+                        <td class="p-4">
+                            <span class="badge ${accuracyBadge}">${accuracy ? (accuracy * 100).toFixed(0) : 'N/A'}${accuracy ? '%' : ''}</span>
+                        </td>
+                        <td class="p-4 text-gray-400">${model.expected_fps_cpu ?? 'N/A'}${model.expected_fps_cpu ? ' FPS' : ''}</td>
+                        <td class="p-4 text-gray-400">${model.expected_fps_gpu ?? 'N/A'}${model.expected_fps_gpu ? ' FPS' : ''}</td>
+                        <td class="p-4 text-gray-400 text-sm">${escapeHtml(modelListText(model.recommended_for || model.best_for))}</td>
+                        <td class="p-4">
+                            ${model.runnable ? 
+                                `<button onclick="selectModel('${modelId}')" class="btn-primary text-sm">Select</button>` :
+                                '<span class="text-gray-500 text-sm">Catalog Only</span>'
+                            }
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadModels() {
+            const tbody = document.getElementById('modelsTableBody');
+            const countSpan = document.getElementById('modelCount');
+            
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400">Loading models...</td></tr>';
+            countSpan.textContent = 'Loading models...';
+            
+            try {
+                const data = await fetchModelsCatalog();
+                const models = data.models || [];
+                renderModelsTable(models, 'backend');
+                
+            } catch (error) {
+                console.error('Error loading models:', error);
+                renderModelsTable(FALLBACK_MODELS, 'fallback');
+                const warningRow = `
+                    <tr>
+                        <td colspan="8" class="text-center py-3 text-yellow-300 bg-yellow-500/10">
+                            Backend model API was not reachable, showing fallback models.
+                            <button onclick="loadModels()" class="btn-secondary text-xs ml-3">Retry backend</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML = warningRow + tbody.innerHTML;
+            }
+        }
+
+        // Load models when navigating to models page
+        const originalNavigateTo = navigateTo;
+        navigateTo = function(pageId) {
+            originalNavigateTo(pageId);
+            if (pageId === 'models') {
+                setTimeout(loadModels, 100);
+            }
+        };
+
+        // Load models on initial page load if on models page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWebcamModels();
+            loadModels();
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('page') === 'models') {
+                loadModels();
+            }
+        });
+    </script>
+</body>
+</html>
