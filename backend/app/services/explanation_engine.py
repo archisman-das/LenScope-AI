@@ -79,6 +79,7 @@ class DetectionExplainer:
         confidence = detection["confidence"]
         bbox = detection["bbox"]
         class_name = detection["class_name"]
+        gradcam_activation = (detection.get("metadata") or {}).get("gradcam_activation")
         
         # Calculate object size
         area = (bbox["x2"] - bbox["x1"]) * (bbox["y2"] - bbox["y1"])
@@ -125,17 +126,31 @@ class DetectionExplainer:
         })
         
         # Class-specific explanation
-        class_explanation = self._get_class_explanation(class_name, confidence)
+        class_explanation = (
+            self._get_gradcam_class_explanation(class_name, confidence, gradcam_activation)
+            if gradcam_activation
+            else self._get_class_explanation(class_name, confidence)
+        )
         components.append({
             "type": "class_specific",
             "title": f"Why '{class_name}'?",
             "description": class_explanation,
             "value": class_name
         })
+
+        if gradcam_activation:
+            components.append({
+                "type": "gradcam_activation",
+                "title": "GradCAM Focus",
+                "description": self._get_gradcam_focus_description(class_name, confidence, gradcam_activation),
+                "value": gradcam_activation
+            })
         
         # Generate overall explanation
-        overall_explanation = self._generate_overall_explanation(
-            class_name, confidence, size_category, position, components
+        overall_explanation = (
+            self._generate_gradcam_overall_explanation(class_name, confidence, gradcam_activation)
+            if gradcam_activation
+            else self._generate_overall_explanation(class_name, confidence, size_category, position, components)
         )
         
         return {
@@ -150,6 +165,45 @@ class DetectionExplainer:
             },
             "recommendation": self._get_recommendation(confidence, size_category, position)
         }
+
+    def _get_gradcam_class_explanation(
+        self,
+        class_name: str,
+        confidence: float,
+        activation: Dict[str, Any]
+    ) -> str:
+        region = activation.get("primary_region", "the highlighted region")
+        mean_activation = round(float(activation.get("mean_activation", 0)) * 100, 1)
+        return (
+            f"Model focused on {region} region ({mean_activation}% activation) "
+            f"to detect '{class_name}' with {confidence:.2f} confidence"
+        )
+
+    def _get_gradcam_focus_description(
+        self,
+        class_name: str,
+        confidence: float,
+        activation: Dict[str, Any]
+    ) -> str:
+        region = activation.get("primary_region", "unknown")
+        max_activation = round(float(activation.get("max_activation", 0)) * 100, 1)
+        return (
+            f"The strongest GradCAM response for '{class_name}' appears in the "
+            f"{region} region, peaking at {max_activation}% activation."
+        )
+
+    def _generate_gradcam_overall_explanation(
+        self,
+        class_name: str,
+        confidence: float,
+        activation: Dict[str, Any]
+    ) -> str:
+        region = activation.get("primary_region", "the highlighted region")
+        mean_activation = round(float(activation.get("mean_activation", 0)) * 100, 1)
+        return (
+            f"Model focused on {region} region ({mean_activation}% activation) "
+            f"to detect '{class_name}' with {confidence:.2f} confidence."
+        )
     
     def _get_confidence_explanation(self, confidence: float) -> Dict[str, Any]:
         """Get explanation for confidence level"""

@@ -41,6 +41,8 @@ pnpm-debug.log*
 # Runtime data and user uploads
 uploads/
 backend/uploads/
+backend/data/*.jsonl
+benchmark/results/
 *.db
 *.sqlite
 *.sqlite3
@@ -48,6 +50,7 @@ backend/uploads/
 # Model weights and generated ML artifacts
 weights/
 backend/weights/
+backend/weights/ablation/
 *.pt
 *.pth
 *.onnx

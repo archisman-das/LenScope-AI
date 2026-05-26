@@ -22,6 +22,7 @@ from ..schemas.detection import (
 from ..schemas.common import Message, HealthCheck
 from ..services.detection import DetectionService
 from ..services.model_manager import ModelManager
+from ..services.adaptive_ai import get_adaptive_switcher
 from ..config import settings, AVAILABLE_MODELS, COCO_CLASSES, OPEN_VOCAB_DEFAULT_CLASSES
 from ..utils.image import validate_image, save_image, generate_detection_filename
 from ..utils.system import get_system_info
@@ -116,7 +117,8 @@ async def detect_image(
     iou_threshold: float = Form(default=0.45, ge=0, le=1, description="IoU threshold for NMS"),
     draw_boxes: bool = Form(default=True, description="Whether to draw bounding boxes"),
     open_vocab_prompt: Optional[str] = Form(None, description="Optional labels for open-vocabulary detection"),
-    session_id: Optional[str] = Form(None, description="Session ID for tracking")
+    session_id: Optional[str] = Form(None, description="Session ID for tracking"),
+    adaptive: bool = Query(default=False, description="Use trained meta-router for model selection")
 ):
     """
     Detect objects in an uploaded image
@@ -148,6 +150,18 @@ async def detect_image(
     
     open_vocab_classes = parse_open_vocab_prompt(open_vocab_prompt)
     auto_mode = model_name == "auto"
+    adaptive_routing = adaptive and settings.ADAPTIVE_ROUTING_ENABLED
+    routing_info = None
+
+    if adaptive_routing:
+        routing_info = get_adaptive_switcher().predict(image)
+        model_name = routing_info["predicted_model"]
+        auto_mode = False
+        logger.info(
+            "Adaptive meta-router selected model: %s (confidence %.3f)",
+            model_name,
+            routing_info["confidence"],
+        )
 
     # Check if model is available
     if not auto_mode and model_name not in AVAILABLE_MODELS:
@@ -182,6 +196,23 @@ async def detect_image(
                 draw_boxes=draw_boxes,
                 return_base64=True,
                 open_vocab_classes=open_vocab_classes,
+            )
+
+        if adaptive_routing and routing_info:
+            result["auto_selection"] = {
+                "strategy": "meta-router",
+                "selected_model": model_name,
+                "confidence": routing_info["confidence"],
+                "top3_alternatives": routing_info["top3_alternatives"],
+                "scene_features_used": routing_info["scene_features_used"],
+                "feature_vector": routing_info["feature_vector"],
+                "router_kind": routing_info["router_kind"],
+            }
+            get_adaptive_switcher().record_performance(
+                model_id=model_name,
+                inference_time_ms=result["inference_time_ms"],
+                detection_count=result["num_detections"],
+                success=True,
             )
         
         # Generate output filename

@@ -13,6 +13,7 @@ from datetime import datetime
 from ..config import settings, AVAILABLE_MODELS, COCO_CLASSES, OPEN_VOCAB_DEFAULT_CLASSES
 from ..utils.image import load_image, draw_detections, save_image, encode_image_base64, resize_image
 from ..utils.helpers import Timer
+from .meta_dataset_collector import meta_dataset_collector
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +233,8 @@ class DetectionService:
         draw_boxes: bool = True,
         return_base64: bool = False,
         save_path: str = None,
-        open_vocab_classes: Optional[List[str]] = None
+        open_vocab_classes: Optional[List[str]] = None,
+        map_score: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Full detection workflow for an image
@@ -245,6 +247,7 @@ class DetectionService:
             draw_boxes: Whether to draw bounding boxes on output
             return_base64: Whether to return image as base64
             save_path: Path to save output image
+            map_score: mAP achieved by this model, when known from an evaluation run
             
         Returns:
             Dictionary with detection results and metadata
@@ -279,6 +282,13 @@ class DetectionService:
             "class_summary": self._get_class_summary(detections),
             "device_used": str(engine.device)
         }
+
+        meta_dataset_collector.collect(
+            image_path=image,
+            model_id=model_id,
+            map_score=map_score,
+            latency_ms=result["inference_time_ms"],
+        )
         
         # Draw detections on image if requested
         if draw_boxes and detections:

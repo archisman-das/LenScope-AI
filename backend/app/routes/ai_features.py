@@ -7,17 +7,22 @@ AI Features API routes for advanced AI capabilities
 - AI Decision Explanation Panel
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 from typing import Optional, List
 from datetime import datetime
 import logging
+from pathlib import Path
 
 from ..services.adaptive_ai import get_adaptive_switcher, get_recommendation_engine, HardwareResourceDetector
+from ..utils.image import load_image
 from ..services.scene_memory import get_scene_memory
 from ..services.object_relationships import get_object_graph
 from ..services.prediction_engine import get_prediction_engine
 from ..services.explanation_engine import get_explanation_engine
+from ..services.gradcam_service import gradcam_service
 from ..schemas.common import Message
+from ..config import settings, AVAILABLE_MODELS
+from ..utils.image import validate_image
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,43 @@ async def get_model_performance_stats():
     return {
         "model_performance": switcher.get_model_performance_stats()
     }
+
+
+@router.get("/adaptive/explain-routing")
+async def explain_adaptive_routing(
+    image_path: Optional[str] = Query(
+        default=None,
+        description="Optional local image path. If omitted, returns the latest routing explanation."
+    )
+):
+    """Explain the trained meta-router's latest or image-specific model choice."""
+    router = get_adaptive_switcher()
+
+    try:
+        image = None
+        if image_path:
+            path = Path(image_path)
+            if not path.exists():
+                raise HTTPException(status_code=404, detail=f"Image not found: {image_path}")
+            image = load_image(path)
+
+        explanation = router.explain(image)
+        return {
+            "predicted_model": explanation["predicted_model"],
+            "confidence": explanation["confidence"],
+            "top3_alternatives": explanation.get("top3_alternatives", []),
+            "scene_features_used": explanation.get("scene_features_used"),
+            "feature_vector": explanation.get("feature_vector"),
+            "feature_importances": explanation.get("feature_importances"),
+            "gradcam_attribution": explanation.get("gradcam_attribution"),
+            "router_kind": explanation.get("router_kind"),
+            "router_model_path": explanation.get("router_model_path"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to explain adaptive routing: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to explain routing: {str(e)}")
 
 
 @router.post("/adaptive/reset")
@@ -452,6 +494,54 @@ async def get_explanation_history(
     return {
         "explanations": engine.get_explanation_history(limit),
         "total": len(engine.explanation_history)
+    }
+
+
+@router.post("/explain/gradcam")
+async def explain_gradcam(
+    file: UploadFile = File(..., description="Image file to explain"),
+    model_id: str = Form(default="yolov8n", description="Model identifier"),
+    confidence_threshold: float = Form(default=0.25, ge=0, le=1),
+    iou_threshold: float = Form(default=0.45, ge=0, le=1),
+):
+    """Generate GradCAM overlay and activation-aware detection explanations."""
+    if model_id not in AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model: {model_id}")
+    if not AVAILABLE_MODELS[model_id].get("runnable", True):
+        raise HTTPException(status_code=400, detail=f"Model '{model_id}' is not runnable")
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    content = await file.read()
+    is_valid, error_msg, image = validate_image(content, settings.MAX_UPLOAD_SIZE)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    result = gradcam_service.explain(
+        image_source=image,
+        model_id=model_id,
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+    )
+    detections = gradcam_service.enrich_detections_with_activation(
+        result["detections"],
+        result["per_class_activation_map"],
+    )
+    explanation_engine = get_explanation_engine()
+    image_dimensions = {
+        "width": image.shape[1],
+        "height": image.shape[0],
+    }
+
+    return {
+        "model_id": model_id,
+        "detection_boxes": detections,
+        "gradcam_overlay_url": result["gradcam_overlay_url"],
+        "per_class_activation_map": result["per_class_activation_map"],
+        "explanations": [
+            explanation_engine.explain_detection(detection, image_dimensions)
+            for detection in detections[:10]
+        ],
     }
 
 

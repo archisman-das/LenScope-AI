@@ -9,13 +9,16 @@ Intelligently switches between AI models based on:
 
 import logging
 import time
+import pickle
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
 import numpy as np
 import psutil
 
-from ..config import AVAILABLE_MODELS, COCO_CLASSES
+from ..config import AVAILABLE_MODELS, COCO_CLASSES, settings
+from .meta_dataset_collector import MetaDatasetCollector
 
 logger = logging.getLogger(__name__)
 
@@ -922,16 +925,285 @@ class ModelRecommendationEngine:
         }
 
 
+RESOLUTION_BUCKETS = ["small", "medium", "large"]
+SCENE_TYPES = ["indoor", "outdoor", "crowd", "vehicle", "night"]
+FEATURE_NAMES = [
+    "mean_brightness",
+    "contrast",
+    "blur_score",
+    "estimated_object_count",
+    "aspect_ratio",
+    "resolution_small",
+    "resolution_medium",
+    "resolution_large",
+    "scene_indoor",
+    "scene_outdoor",
+    "scene_crowd",
+    "scene_vehicle",
+    "scene_night",
+]
+
+
+class MetaRouter:
+    """
+    Trained adaptive model router.
+
+    Loads a sklearn or torch router when available and falls back to yolov8n
+    without failing detection requests.
+    """
+
+    def __init__(self):
+        self.project_root = settings.project_root
+        self.sklearn_path = self.project_root / "backend" / "weights" / "meta_router.pkl"
+        self.torch_path = self.project_root / "backend" / "weights" / "meta_router.pt"
+        self.collector = MetaDatasetCollector()
+        self.kind = "fallback"
+        self.model = None
+        self.label_encoder = None
+        self.classes: List[str] = ["yolov8n"]
+        self.scaler_mean = None
+        self.scaler_scale = None
+        self.model_path: Optional[Path] = None
+        self.current_model: Optional[str] = None
+        self.last_switch_time: Optional[datetime] = None
+        self.switch_cooldown: float = 0.0
+        self.model_switches: List[Dict[str, Any]] = []
+        self.scene_history: List[Dict[str, Any]] = []
+        self.performance_history: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        self._load_router()
+
+    def _load_router(self) -> None:
+        if self.sklearn_path.exists():
+            self._load_sklearn(self.sklearn_path)
+            return
+        if self.torch_path.exists():
+            self._load_torch(self.torch_path)
+            return
+        logger.warning("Meta-router model file missing; falling back to yolov8n")
+
+    def _load_sklearn(self, path: Path) -> None:
+        with path.open("rb") as file:
+            bundle = pickle.load(file)
+        self.kind = "sklearn"
+        self.model = bundle["model"]
+        self.label_encoder = bundle["label_encoder"]
+        self.classes = list(self.label_encoder.classes_)
+        self.model_path = path
+        logger.info("Loaded sklearn meta-router from %s", path)
+
+    def _load_torch(self, path: Path) -> None:
+        import torch
+
+        checkpoint = torch.load(path, map_location="cpu")
+        self.kind = "torch"
+        self.classes = list(checkpoint["classes"])
+        self.scaler_mean = np.array(checkpoint["scaler_mean"], dtype=np.float32)
+        self.scaler_scale = np.array(checkpoint["scaler_scale"], dtype=np.float32)
+        self.model = self._build_torch_head(len(FEATURE_NAMES), len(self.classes))
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.eval()
+        self.model_path = path
+        logger.info("Loaded torch meta-router from %s", path)
+
+    @staticmethod
+    def _build_torch_head(input_dim: int, num_classes: int):
+        import torch.nn as nn
+        from torchvision.models import mobilenet_v3_small
+
+        backbone = mobilenet_v3_small(weights=None)
+        classifier = list(backbone.classifier.children())
+        classifier[0] = nn.Linear(input_dim, classifier[0].out_features)
+        classifier[-1] = nn.Linear(classifier[-1].in_features, num_classes)
+        return nn.Sequential(*classifier)
+
+    def predict(self, image: np.ndarray) -> Dict[str, Any]:
+        scene_features = self.collector._extract_scene_features(image)
+        feature_vector = np.array([self.vectorize(scene_features)], dtype=np.float32)
+
+        if self.kind == "sklearn":
+            result = self._predict_sklearn(feature_vector)
+        elif self.kind == "torch":
+            result = self._predict_torch(feature_vector)
+        else:
+            result = self._fallback_prediction()
+
+        result["scene_features_used"] = scene_features
+        result["feature_vector"] = feature_vector[0].tolist()
+        result["router_kind"] = self.kind
+        result["router_model_path"] = str(self.model_path) if self.model_path else None
+
+        self._record_routing(result)
+        return result
+
+    def explain(self, image: Optional[np.ndarray] = None) -> Dict[str, Any]:
+        if image is not None:
+            return self.predict(image)
+        if self.scene_history:
+            return self.scene_history[-1]
+        return {
+            **self._fallback_prediction(),
+            "scene_features_used": None,
+            "feature_vector": None,
+            "router_kind": self.kind,
+            "router_model_path": str(self.model_path) if self.model_path else None,
+        }
+
+    def _predict_sklearn(self, feature_vector: np.ndarray) -> Dict[str, Any]:
+        if hasattr(self.model, "predict_proba"):
+            probabilities = self.model.predict_proba(feature_vector)[0]
+        else:
+            prediction = int(self.model.predict(feature_vector)[0])
+            probabilities = np.zeros(len(self.classes), dtype=np.float32)
+            probabilities[prediction] = 1.0
+
+        ranked = self._rank_probabilities(probabilities)
+        importances = getattr(self.model, "feature_importances_", None)
+        return {
+            "predicted_model": ranked[0]["model_id"],
+            "confidence": ranked[0]["confidence"],
+            "top3_alternatives": ranked[1:4],
+            "feature_importances": self._named_values(importances) if importances is not None else None,
+            "gradcam_attribution": None,
+        }
+
+    def _predict_torch(self, feature_vector: np.ndarray) -> Dict[str, Any]:
+        import torch
+
+        scaled = self._scale(feature_vector)
+        tensor = torch.tensor(scaled, dtype=torch.float32, requires_grad=True)
+        logits = self.model(tensor)
+        probabilities = logits.softmax(dim=1)[0]
+        predicted_index = int(probabilities.argmax().item())
+        probabilities[predicted_index].backward()
+        attribution = (tensor.grad.detach().numpy()[0] * scaled[0]).tolist()
+        ranked = self._rank_probabilities(probabilities.detach().numpy())
+        return {
+            "predicted_model": ranked[0]["model_id"],
+            "confidence": ranked[0]["confidence"],
+            "top3_alternatives": ranked[1:4],
+            "feature_importances": None,
+            "gradcam_attribution": self._named_values(attribution),
+        }
+
+    def _fallback_prediction(self) -> Dict[str, Any]:
+        alternatives = [
+            {"model_id": model_id, "confidence": 0.0}
+            for model_id in list(AVAILABLE_MODELS.keys())
+            if model_id != "yolov8n"
+        ][:3]
+        return {
+            "predicted_model": "yolov8n",
+            "confidence": 1.0,
+            "top3_alternatives": alternatives,
+            "feature_importances": None,
+            "gradcam_attribution": None,
+        }
+
+    def _rank_probabilities(self, probabilities: np.ndarray) -> List[Dict[str, Any]]:
+        ranked_indices = np.argsort(probabilities)[::-1]
+        ranked = []
+        for index in ranked_indices[:4]:
+            model_id = str(self.classes[int(index)])
+            if model_id in AVAILABLE_MODELS:
+                ranked.append({"model_id": model_id, "confidence": round(float(probabilities[index]), 4)})
+        if not ranked:
+            ranked.append({"model_id": "yolov8n", "confidence": 1.0})
+        return ranked
+
+    def _scale(self, feature_vector: np.ndarray) -> np.ndarray:
+        scale = np.where(self.scaler_scale == 0, 1.0, self.scaler_scale)
+        return (feature_vector - self.scaler_mean) / scale
+
+    def _record_routing(self, result: Dict[str, Any]) -> None:
+        previous_model = self.current_model
+        self.current_model = result["predicted_model"]
+        self.last_switch_time = datetime.utcnow()
+        record = {
+            "timestamp": self.last_switch_time.isoformat(),
+            **result,
+        }
+        self.scene_history.append(record)
+        if previous_model != self.current_model:
+            self.model_switches.append({
+                "timestamp": record["timestamp"],
+                "from_model": previous_model,
+                "to_model": self.current_model,
+                "confidence": result["confidence"],
+            })
+
+    def record_performance(
+        self,
+        model_id: str,
+        inference_time_ms: float,
+        detection_count: int,
+        success: bool = True,
+    ) -> None:
+        self.performance_history[model_id].append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "inference_time_ms": inference_time_ms,
+            "detection_count": detection_count,
+            "success": success,
+        })
+
+    def get_switch_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        return self.model_switches[-limit:]
+
+    def get_scene_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        return self.scene_history[-limit:]
+
+    def get_model_performance_stats(self) -> Dict[str, Dict[str, Any]]:
+        stats = {}
+        for model_id, rows in self.performance_history.items():
+            if rows:
+                stats[model_id] = {
+                    "total_detections": len(rows),
+                    "avg_inference_time_ms": round(
+                        sum(row["inference_time_ms"] for row in rows) / len(rows), 2
+                    ),
+                    "success_rate": round(sum(1 for row in rows if row["success"]) / len(rows), 3),
+                }
+        return stats
+
+    def reset_statistics(self) -> None:
+        self.current_model = None
+        self.last_switch_time = None
+        self.model_switches.clear()
+        self.scene_history.clear()
+        self.performance_history.clear()
+
+    @staticmethod
+    def vectorize(scene_features: Dict[str, Any]) -> List[float]:
+        bucket = scene_features.get("resolution_bucket")
+        scene_type = scene_features.get("scene_type")
+        vector = [
+            float(scene_features.get("mean_brightness", 0.0) or 0.0),
+            float(scene_features.get("contrast", 0.0) or 0.0),
+            float(scene_features.get("blur_score", 0.0) or 0.0),
+            float(scene_features.get("estimated_object_count", 0.0) or 0.0),
+            float(scene_features.get("aspect_ratio", 0.0) or 0.0),
+        ]
+        vector.extend(1.0 if bucket == value else 0.0 for value in RESOLUTION_BUCKETS)
+        vector.extend(1.0 if scene_type == value else 0.0 for value in SCENE_TYPES)
+        return vector
+
+    @staticmethod
+    def _named_values(values: Any) -> Dict[str, float]:
+        return {
+            name: round(float(value), 6)
+            for name, value in zip(FEATURE_NAMES, values)
+        }
+
+
 # Singleton instances
-_adaptive_switcher: Optional[AdaptiveModelSwitcher] = None
+_adaptive_switcher: Optional[MetaRouter] = None
 _recommendation_engine: Optional[ModelRecommendationEngine] = None
 
 
-def get_adaptive_switcher() -> AdaptiveModelSwitcher:
-    """Get or create adaptive model switcher singleton"""
+def get_adaptive_switcher() -> MetaRouter:
+    """Get or create trained meta-router singleton"""
     global _adaptive_switcher
     if _adaptive_switcher is None:
-        _adaptive_switcher = AdaptiveModelSwitcher()
+        _adaptive_switcher = MetaRouter()
     return _adaptive_switcher
 
 

@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     USE_INT8: bool = False
     AUTO_DOWNSCALE: bool = True
     MAX_RESOLUTION: int = 1280
+    ADAPTIVE_ROUTING_ENABLED: bool = True
     
     # Webcam Settings
     WEBCAM_FPS: int = 30
