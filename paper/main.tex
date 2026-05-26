@@ -1,0 +1,136 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{cite}
+
+\title{LenScope-AI: Adaptive Real-Time Object Detection with Scene-Aware Model Routing}
+
+\author{
+\IEEEauthorblockN{Author Name}
+\IEEEauthorblockA{
+Department or Laboratory\\
+Institution Name\\
+City, Country\\
+email@example.com}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+LenScope-AI is a real-time object detection platform that combines YOLOv8, FastAPI, and Next.js with an adaptive meta-router for per-scene model selection. This section should summarize the motivation for adaptive routing, the learned scene features used by the router, and the core performance trade-off between accuracy and latency. It should briefly state that the system trains either a MobileNetV3-based classifier head or a RandomForest fallback depending on dataset size. It should also preview the benchmark results, ablation findings, and GradCAM-based explainability outputs. Relevant prior work to cite includes YOLOv8-style detectors, MobileNetV3, random forests, GradCAM, and adaptive inference systems \cite{redmon2016yolo,jocher2023yolov8,howard2019mobilenetv3,selvaraju2017gradcam,breiman2001random}.
+\end{abstract}
+
+\section{Introduction}
+Real-time object detection systems must balance accuracy, latency, and resource constraints across diverse visual scenes. LenScope-AI addresses this challenge by routing each image to a suitable detector based on learned scene descriptors rather than using a fixed model for every request. The introduction should describe the practical motivation: lightweight models are efficient for simple scenes, while larger or specialized models can be preferable for dense, blurred, low-light, or vehicle-heavy scenes. It should also state the paper's contributions: an adaptive meta-router, a benchmark pipeline, ablation analysis, and activation-aware explanations. Suggested references include the original YOLO family, Faster R-CNN, SSD, MobileNetV3, and adaptive computation literature \cite{redmon2016yolo,ren2015fasterrcnn,liu2016ssd,howard2019mobilenetv3,graves2016adaptive}.
+
+\section{Related Work}
+This section should organize prior work into object detection, lightweight detection, model selection, meta-learning, and explainable AI. It should compare one-stage detectors such as YOLO and SSD with two-stage detectors such as Faster R-CNN, noting their accuracy-latency trade-offs. It should also discuss meta-learning and adaptive inference methods that choose models or computation paths based on input difficulty. Finally, it should relate GradCAM and detection explainability methods to the paper's explanation endpoint. Relevant works to look up include YOLO, YOLOv3/YOLOv4/YOLOv8, SSD, Faster R-CNN, Meta-Learning LSTM, GradCAM, and class activation mapping \cite{redmon2016yolo,redmon2018yolov3,bochkovskiy2020yolov4,liu2016ssd,ren2015fasterrcnn}.
+
+\section{System Architecture}
+LenScope-AI follows a service-oriented architecture with a FastAPI backend, a Next.js frontend, and modular AI services for detection, routing, benchmarking, and explanation. The backend exposes endpoints for standard detection, adaptive routing, benchmark execution, and GradCAM explanations, while the frontend presents real-time webcam and analysis workflows. Figure~\ref{fig:architecture} should show the end-to-end pipeline from image upload or webcam frame to scene feature extraction, meta-router prediction, detector execution, and explanation output. Table~\ref{tab:model_comparison} should summarize the detector families and runtime profiles produced by the benchmark script. Suggested references include real-time detection systems, edge AI, lightweight neural networks, adaptive inference, and model selection work \cite{jocher2023yolov8,liu2016ssd,howard2019mobilenetv3,graves2016adaptive,breiman2001random}.
+
+\begin{figure}[t]
+    \centering
+    \fbox{\includegraphics[width=0.95\linewidth]{figures/architecture_placeholder.pdf}}
+    \caption{LenScope-AI system architecture showing the frontend, FastAPI backend, meta-router, detector pool, benchmark module, and GradCAM explanation service.}
+    \label{fig:architecture}
+\end{figure}
+
+\section{Proposed Method: Meta-Router}
+The proposed method learns a scene-aware router that maps image statistics and semantic scene labels to the best detector for that input. The feature vector includes brightness, contrast, blur score, estimated object count, aspect ratio, resolution bucket, and CLIP-derived scene type labels. The router is trained as a MobileNetV3-Small classifier head when sufficient samples are available, with a RandomForestClassifier fallback for smaller datasets. Figure~\ref{fig:meta_router} should visualize the meta-router feature extraction and model selection flow. Relevant papers include MobileNetV3, CLIP, random forests, meta-learning, and adaptive neural computation \cite{howard2019mobilenetv3,radford2021clip,breiman2001random,hochreiter2001learning,graves2016adaptive}.
+
+\begin{figure}[t]
+    \centering
+    \fbox{\includegraphics[width=0.95\linewidth]{figures/meta_router_placeholder.pdf}}
+    \caption{Meta-router pipeline: scene feature extraction, feature encoding, classifier prediction, and detector selection.}
+    \label{fig:meta_router}
+\end{figure}
+
+\section{Experimental Setup}
+The experimental setup should describe the datasets, model variants, metrics, and hardware environment used to evaluate LenScope-AI. The benchmark script evaluates COCO val2017 and PASCAL VOC 2012 using mAP@0.5, mAP@0.5:0.95, AR@100, inference latency, peak RAM, and GPU VRAM. It also compares adaptive routing against a YOLOv8n baseline and an oracle best-model-per-image upper bound. Table~\ref{tab:model_comparison} and Table~\ref{tab:adaptive_routing} should be generated from the LaTeX outputs saved by the benchmark scripts. Suggested citations include COCO, PASCAL VOC, YOLO, SSD, and Faster R-CNN \cite{lin2014coco,everingham2010pascal,redmon2016yolo,liu2016ssd,ren2015fasterrcnn}.
+
+\begin{table}[t]
+    \centering
+    \caption{Model comparison on COCO val2017 and PASCAL VOC 2012. Replace this placeholder with \texttt{benchmark/results/table1\_model\_comparison.tex}.}
+    \label{tab:model_comparison}
+    \begin{tabular}{lccc}
+        \toprule
+        Model & mAP@0.5 & mAP@0.5:0.95 & Latency \\
+        \midrule
+        YOLOv8n & -- & -- & -- \\
+        YOLOv8x & -- & -- & -- \\
+        Meta-routed & -- & -- & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Results}
+This section should report the main detection performance and system efficiency findings. It should compare each implemented detector across datasets and explain how the adaptive router changes the accuracy-latency trade-off. The oracle result should be treated as an upper bound, while the YOLOv8n baseline should represent a fixed lightweight deployment. Figure~\ref{fig:results_summary} can show mAP versus latency, and Table~\ref{tab:adaptive_routing} should summarize baseline, oracle, and LenScope-AI routing results. Suggested citations include benchmark methodology, COCO metrics, YOLO, lightweight detectors, and adaptive inference \cite{lin2014coco,everingham2010pascal,jocher2023yolov8,howard2019mobilenetv3,graves2016adaptive}.
+
+\begin{figure}[t]
+    \centering
+    \fbox{\includegraphics[width=0.95\linewidth]{figures/results_summary_placeholder.pdf}}
+    \caption{Accuracy-latency trade-off across detector families and adaptive routing strategies.}
+    \label{fig:results_summary}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{Adaptive routing comparison. Replace this placeholder with \texttt{benchmark/results/table2\_adaptive\_routing.tex}.}
+    \label{tab:adaptive_routing}
+    \begin{tabular}{lc}
+        \toprule
+        Strategy & Weighted mAP \\
+        \midrule
+        YOLOv8n baseline & -- \\
+        Oracle best per image & -- \\
+        LenScope-AI Meta-Router & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Ablation Study}
+The ablation study should quantify the contribution of each feature group in the adaptive routing pipeline. It evaluates V1 through V5, ranging from no routing to the full system with CLIP scene type features. The discussion should highlight whether low-level image statistics, object count, resolution, or semantic scene type contributes most to routing accuracy. Figure~\ref{fig:ablation_chart} should use \texttt{benchmark/results/ablation\_chart.png}, and Table~\ref{tab:ablation} should use \texttt{benchmark/results/ablation\_results.csv}. Suggested references include CLIP, feature ablation practices, random forests, MobileNetV3, and explainability literature \cite{radford2021clip,breiman2001random,howard2019mobilenetv3,selvaraju2017gradcam,zhou2016cam}.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{../benchmark/results/ablation_chart.png}
+    \caption{Ablation results showing mAP@0.5 and routing overhead for feature variants V1--V5.}
+    \label{fig:ablation_chart}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{Ablation study for adaptive routing features. Populate this table from \texttt{benchmark/results/ablation\_results.csv}.}
+    \label{tab:ablation}
+    \begin{tabular}{lcc}
+        \toprule
+        Variant & mAP@0.5 & Overhead (ms) \\
+        \midrule
+        V1 & -- & -- \\
+        V2 & -- & -- \\
+        V3 & -- & -- \\
+        V4 & -- & -- \\
+        V5 & -- & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Discussion}
+This section should interpret the system-level implications of adaptive routing for real-time object detection deployments. It should discuss when adaptive routing is beneficial, when the overhead may not be justified, and how scene features affect detector selection. It should also address limitations such as dataset bias, missing ground-truth mAP during ordinary API inference, and dependency on CLIP or model artifact availability. GradCAM explanations should be discussed as a practical transparency mechanism rather than a complete causal explanation. Suggested citations include GradCAM, class activation mapping, CLIP, adaptive inference, and benchmark methodology \cite{selvaraju2017gradcam,zhou2016cam,radford2021clip,graves2016adaptive,lin2014coco}.
+
+\section{Conclusion}
+This paper presents LenScope-AI, a real-time object detection platform with a learned meta-router for scene-aware model selection. The conclusion should restate the system contributions, including the training data collector, adaptive inference endpoint, benchmark scripts, ablation study, and GradCAM explainability service. It should summarize the expected empirical finding that adaptive routing can improve weighted mAP relative to a fixed lightweight baseline while controlling latency overhead. Future work may include larger-scale training, video-temporal routing, active learning for router labels, and deployment on edge devices. Relevant references include YOLO, MobileNetV3, CLIP, meta-learning, and XAI for visual recognition \cite{redmon2016yolo,howard2019mobilenetv3,radford2021clip,hochreiter2001learning,selvaraju2017gradcam}.
+
+\section*{Acknowledgment}
+The authors may acknowledge institutional support, compute resources, dataset providers, and open-source libraries used in LenScope-AI.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
